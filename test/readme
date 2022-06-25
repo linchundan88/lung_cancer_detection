@@ -1,0 +1,6 @@
+
+training ddp multi multiprocessing instead of multi threading
+
+validation do not need ddp, data parallel is more simpler.
+
+
