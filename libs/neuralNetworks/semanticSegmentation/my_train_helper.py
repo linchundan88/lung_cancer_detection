@@ -84,8 +84,8 @@ def my_train(config):
         config.scheduler.step()
 
         for index, ds_valid in enumerate(config.list_ds_valid):
-            print(f'compute validation dataset index：{index}...')
-            loss_validate = my_validate(ds_valid, epoch, config)
+            print(f'epoch:{epoch} compute validation dataset index：{index}...')
+            loss_validate = my_validate(ds_valid, config)
 
         if config.save_model_dir:
             save_model_file = config.save_model_dir / f'valid_loss_{round(loss_validate, 3)}_epoch{epoch}.pth'
@@ -98,7 +98,7 @@ def my_train(config):
 
 
 
-def my_validate(ds_valid, epoch, config):
+def my_validate(ds_valid, config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config.model.eval()
 
@@ -126,14 +126,14 @@ def my_validate(ds_valid, epoch, config):
             epoch_fn_valid += fn
 
             if config.save_model_dir:  # logging
-                logging.info(f'epoch:{epoch} validation batch:{batch_idx}, losses:{loss.item():8.2f}')
+                logging.info(f'validation batch:{batch_idx}, losses:{loss.item():8.2f}')
 
 
     epoch_valid_loss_valid /= (batch_idx + 1)
     epoch_acc_valid, epoch_sen_valid, epoch_spe_valid, epoch_iou_valid, epoch_dice_valid =\
         get_metrics(epoch_tp_valid, epoch_tn_valid, epoch_fp_valid, epoch_fn_valid)
 
-    print(f'validation epoch{epoch} metrics:')
+    print(f'validation metrics:')
     print(f'losses:{epoch_valid_loss_valid:8.2f}')
     print(f'acc:{epoch_acc_valid:5.3f}, sen:{epoch_sen_valid:5.3f}, spe:{epoch_spe_valid:5.3f}')
     print(f'iou:{epoch_iou_valid:5.3f}, dice:{epoch_dice_valid:5.3f}')

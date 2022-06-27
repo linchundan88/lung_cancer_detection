@@ -8,8 +8,14 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from libs.dataPreprocess.my_data import get_patiend_id, split_patient_ids, write_csv
 import argparse
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_type', default='ACDC2019_v2')
+'''
+V0 20X slide_level=0
+V1 10X slide_level=1, 512*512 field of view  4 times as many patches as V2
+V2 5X  slide_level=2, 512*512 field of view
+'''
+parser.add_argument('--data_type', default='ACDC2019_v1')
 parser.add_argument('--path_patches', default='/disk_data/data/ACDC_2019/Training/patches/level1_512')
 #patches level1_512 should be level1_51, but I do not rename dirs.
 args = parser.parse_args()

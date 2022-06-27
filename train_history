@@ -3,8 +3,12 @@
 binary cross entropy, pos_weight=4
 too many false positives
 
-
-V1 10X slide_level=1, 512*512 field of view
+V0 20X slide_level=0
+V1 10X slide_level=1, 512*512 field of view  4 times as many patches as V2
 V2 5X  slide_level=2, 512*512 field of view
 
-the performance of V2 is better than that of V1.
+the performance of V1 is better than that of V2.
+
+v1 model predict v2 data, performance totally bad.
+
+the performance of model ensemble is a little better than that of the best model.

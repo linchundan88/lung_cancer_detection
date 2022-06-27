@@ -23,36 +23,43 @@ import time
 import logging
 
 
-@torch.no_grad()
-def predict_csv(filename_csv, model_dicts, model_convert_gpu=True, num_workers=8, include_input=False):
-    list_outputs = []
 
-    for model_dict in model_dicts:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = model_dict['model']
-        if model_convert_gpu and torch.cuda.device_count() > 0:
-            model.to(device)
-        if model_convert_gpu and torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
-        model.eval()
+#@torch.no_grad()  using torch.inference_mode() instead.
+def predict_single_model(data_loader, model_dict, model_convert_gpu=True):
 
-        dataset = Dataset_CSV_SEM_SEG(csv_file=filename_csv, image_shape=model_dict['image_shape'], test_mode=True)
-        data_loader = DataLoader(dataset, batch_size=model_dict['batch_size'], num_workers=num_workers)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model_dict['model']
+    if model_convert_gpu and torch.cuda.device_count() > 0:
+        model.to(device)
+    if model_convert_gpu and torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
+    model.eval()
 
+    with torch.inference_mode():  # better than torch.no_grad  using pytorch>1.9 disabling view tracking and version counter bumps.”
         list_batch_outputs = []
-        list_batch_inputs = []
         for batch_idx, inputs in enumerate(tqdm(data_loader)):
             # print('batch:', batch_idx)
+            if isinstance(inputs, list):
+                inputs, masks = inputs
+
             inputs = inputs.to(device)
             outputs = model(inputs)
             if model_dict['activation'] == 'sigmoid':
                 outputs = torch.sigmoid(outputs)
 
-            if include_input:
-                list_batch_inputs.append(inputs.cpu().numpy())
             list_batch_outputs.append(outputs.cpu().numpy())
 
         outputs = np.vstack(list_batch_outputs)  # Equivalent to np.concatenate(list_outputs, axis=0)
+
+    return outputs
+
+#multi models using the different data loaders image sizes
+def predict_multi_models(data_loaders, model_dicts, model_convert_gpu=True):
+
+    list_outputs = []
+
+    for data_loader, model_dict in zip(data_loaders, model_dicts):
+        outputs = predict_single_model(data_loader, model_dict, model_convert_gpu=model_convert_gpu)
         list_outputs.append(outputs)
 
         # del model
@@ -69,10 +76,7 @@ def predict_csv(filename_csv, model_dicts, model_convert_gpu=True, num_workers=8
 
     ensemble_outputs /= total_weights
 
-    if not include_input:
-        return list_outputs, ensemble_outputs
-    else:
-        return list_outputs, ensemble_outputs, np.vstack(list_batch_inputs)
+    return list_outputs, ensemble_outputs
 
 
 
@@ -82,7 +86,7 @@ def predict_one_wsi(path_wsi, model_dicts, slide_level, patch_h, patch_w, image_
     path_patches = path_output / 'patches'
     path_patches.mkdir(parents=True, exist_ok=True)
     gen_patches(path_wsi=str(path_wsi), slide_level=slide_level, patch_h=patch_h, patch_w=patch_w,
-                image_thresholds=image_thresholds, patches_dir=path_patches, gen_grid_patches=True)
+            image_thresholds=image_thresholds, patches_dir=path_patches, gen_grid_patches=True)
 
     #generating csv file
     path_csv = path_output / f'predict.csv'
@@ -90,8 +94,15 @@ def predict_one_wsi(path_wsi, model_dicts, slide_level, patch_h, patch_w, image_
 
     #predict patches
     logging.debug(f'start predicting models at time:{time.time()}.')
-    _, outputs = predict_csv(str(path_csv), model_dicts, num_workers=num_workers)
+    list_data_loaders = []
+    for model_dict in model_dicts:
+        ds_valid = Dataset_CSV_SEM_SEG(csv_file=str(path_csv), image_shape=model_dict['image_shape'],
+                                       mask_threshold=mask_threshold, test_mode=True)
+        dataloader_valid = DataLoader(ds_valid, batch_size=32, num_workers=num_workers, pin_memory=True)
+        list_data_loaders.append(dataloader_valid)
+    _, outputs = predict_multi_models(list_data_loaders, model_dicts)
     logging.debug(f'complete predicting models at time:{time.time()}.')
+
 
     # write predicted mask files
     df = pd.read_csv(str(path_csv))
@@ -130,6 +141,18 @@ def predict_one_wsi(path_wsi, model_dicts, slide_level, patch_h, patch_w, image_
         tiff_binary_mask = path_output / 'pred_binary_mask.tif'
         combine_patches(path_patches, file_tiff=str(tiff_binary_mask), compress_ratio=95, patch_tag='_pred_binary_mask', file_ext='.jpg')
 
+
+
+def get_masks(filename_csv):
+    df = pd.read_csv(filename_csv)
+    list_masks = []
+
+    for _, row in df.iterrows():
+        img_file = row['masks']
+        img1 = cv2.imread(img_file, cv2.IMREAD_GRAYSCALE)
+        list_masks.append(img1 / 255.)
+
+    return np.vstack(list_masks)
 
 
 @torch.no_grad()

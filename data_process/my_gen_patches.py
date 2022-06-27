@@ -18,7 +18,7 @@ path_base = Path(args.path_base)
 path_wsi_base = path_base / 'images'
 path_tumor_mask_base = path_base / 'tumor_masks'
 path_roi_mask_base = path_base / 'roi_masks'
-path_patches_base = path_base / 'patches' / f'level{args.slide_level}_{args.patch_w}'
+path_patches_base = path_base / 'patches' / f'level{args.slide_level}_{args.patch_h}_{args.patch_w}'
 
 gen_grid_patches = True
 
